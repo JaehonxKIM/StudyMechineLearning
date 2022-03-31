@@ -15,9 +15,6 @@ print( PI, PI2, PI3, PI4)
 import ml.c.d as mod
 print( mod.PI3 )
 
-# ml 패키지의 lang_detect_ml 함수 불러오기
-from ml import lang_detect_ml
-
 
 app = Flask(__name__)
 
@@ -45,7 +42,7 @@ def lang_detect():
             The Yankee was one of America's first cultural publications and a precursor to the independent American press that formed decades later. Founded and edited by John Neal (pictured), it was published in Portland, Maine, between 1828 and 1829. The magazine helped establish the American gymnastics movement, covered national politics, and critiqued American literature, art, theater, and social issues. Many new, predominantly female, writers and editors started their careers with publication and coverage in The Yankee, including many who are familiar to modern readers. Essays by Neal on American art and theater anticipated major changes and movements realized in the following decades. His articles on women's rights and early feminist ideas affirmed intellectual equality between men and women and demanded political and economic rights for women, saying "If woman would act with woman, there would be a stop to our tyranny".
         '''
         # 2. 말뭉치를 예측 모델에 사용할수 있도록 전처리 
-        lang_detect_ml(ori_text)
+
         #    => [ [10,23,..,10] ]
         # 3. 머신러닝 모델 로드
         # 4. 예측 수행
