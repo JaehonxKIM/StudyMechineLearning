@@ -54,6 +54,9 @@ from sklearn.model_selection import train_test_split
 cancer = load_breast_cancer()
 print(cancer.DESCR)
 
+type(cancer)
+cancer.
+
 # 독립변수, 종속변수의 shape
 cancer.data.shape, cancer.target.shape, cancer.target_names
 
@@ -86,12 +89,210 @@ accuracy_score(y_test, y_pred)
 # 예측을 수행하고 바로 점수를 낸다
 clf.score(X_test, y_test)
 
-"""## 최적화(생략)
+"""## 최적화
 
-## 덤프(생략)
+- 목표 : 현재 93%, 프로젝트는 96 ~ 98%까지 도달하면 종료한다. 이 정도까지  정확도를 올리시오 **최소 현재 레벨에서 3~5% 정확도 상승 목표**
+
+- 방법
+  - 데이터를 증량(현재 불가)
+  - 데이터의 품질향상
+    - 정규화 작업(데이터들간의 분포, 편차, 분신 등 조절해서 처리
+    - 활성화 함수 활용(딥러닝에서 활용되는 활성화 함수 개념 활용, 데이터 전체를 조정하는 방식)
+          - sigmoid, softmax, tanh, Relu, Relu 응용,..
+    - **이런 정규화 혹은 활성화 함수를 통해서 전체 데이터를 조정하는 작업**
+      - **제공되는 기능 사용 혹은 직접 구현**
+"""
+
+cancer.feature_names
+# 종양의 특성 30개를 측정해서 데이터로 구축된 정보
+
+# 데이터 확인
+print(X_train.shape)
+X_train[0]
+
+# 전처리기
+from sklearn.preprocessing import MinMaxScaler
+
+# 전처리기 생성
+# X_train 데이터를 기준으로 min-max 설정
+scaler = MinMaxScaler().fit(X_train)
+
+# X_train의 전처리 진행
+X_train_scaled = scaler.transform(X_train)
+X_train_scaled[0]
+# X_train_scaled은 0 ~ 1 사이로 정규화 되었다
+
+"""- [실습] 새로 준비된 X_train_scaled을 이용하여 동일한 조건의 알고리즘 SVC를 활용하여 학습 및 테스트 수행시 정확도가 몇으로 나오는지 구현하시오"""
+
+# 1. 알고리즘 선정
+clf2 = SVC()
+# 2. 데이터 준비(완료 -> X_train_scaled)
+# 3. 학습
+clf2.fit(X_train_scaled, y_train)
+# 4. 예측 및 성능평가
+clf2.score(X_test, y_test)
+# 정확도가 왜 떨어졌는지 확인
+
+X_test[0]
+# 테스트 데이터를 전처리해서 동일 범위로 테스트 하지 않았다
+# 그래서 정확도가 떨어짐
+
+clf2 = SVC()
+clf2.fit(X_train_scaled, y_train)
+clf2.score(scaler.transform(X_test), y_test)
+
+"""## 덤프(생략)
+
+- 98% 까지 정확도를 올리기
+- **알고리즘 자체를 튜닝한다면, 종류를 변경한다면?**
 
 # 하이퍼파라미터 튜닝
 
-# 파이프라인 구축
+- 알고리즘이 어느 정도 선별되었다
+- 이 알고리즘을 최적으로 튜닝(미세조절)
+- **매개변수 최적화 == 하이퍼 파라미터 튜닝**
+- 알고리즘(매개변수 => 하이퍼파라미터)
+- 단, 여기서는 실습상 여러 알고리즘을 같이 튜닝하면서 최적 성능을 가진 알고리즘을 찾는다
+  - 교차검증
+
+- 교차 검증 도구
+  - GridSearchCV : n개의 알고리즘의 하이퍼파라미터 튜닝 및 비교 -> 최고성능을 나타낸 알고리즘을 찾아냄
+  - vallidation_curve(): 단일 알고리즘 튜닝
+  - ParameterGrid : 동일한 목표
 """
+
+from IPython.display import Image
+Image('/content/drive/MyDrive/res/0404_res/하이퍼파라미터.png')
+
+# 교차검증을 수행할 수 있는 도구 획득
+from sklearn.model_selection import GridSearchCV
+
+# 튜닝할 후보군 파라미터들을 딕셔너리로 표현
+param_grid = {
+    'C'    :[ -0.001, -0.01, -0.1, -1, 0, 1, 10, 100, 1000 ],
+    'gamma':[ -0.001, -0.01, -0.1, -1, 0, 1, 10, 100, 1000 ]
+}
+
+'''
+파라미터 설명
+SVC() : 알고리즘을 선택해서 입력
+param_grid : 해당 알고리즘의 최적화 파라미터 후보들 명시
+cv : 훈련(학습)시 데이터셋을 몇 세트로 구성해 진행하는지
+  ex) cv = 5 -> 5세트로 구성(100세트라면 20개로 구성된다) => fold라고 함
+    4개 세트는 학습을 진행하고, 1개는 검증을 진행한다
+'''
+grid = GridSearchCV( SVC(), param_grid, cv = 5 )
+
+Image('/content/drive/MyDrive/res/0404_res/머신러닝_학습시_검증폴드지정.png')
+
+# 하이퍼파라미터 튜닝을 위한 검증 도구가 세팅되었다
+# 훈련(학습)
+grid.fit( X_train_scaled, y_train )
+
+# 1차 시물레이션 결과 C, gamma 값이 0보다 작을때 문제가 발생 -> 0 이상으로 조합 수정
+# ValueError: C <= 0, ValueError: gamma < 0
+param_grid = {
+  'C'    :[ 0.1, 0.01, 0.001, 0.0001, 1, 10, 100, 1000 ],
+  'gamma':[ 0.1, 0.01, 0.001, 0.0001, 1, 10, 100, 1000 ]
+}
+grid = GridSearchCV( SVC(), param_grid, cv=5 )
+grid.fit( X_train_scaled, y_train )
+
+# 최적의 파라미터의 조합은?
+grid.best_params_
+
+# 최고 점수
+grid.best_score_
+
+# 테스트 데이터 넣어서 예측
+grid.score(scaler.transform(X_test), y_test)
+# 튜닝 전 값:0.9370629370629371
+# 튜닝 후 값 C = 1, gamma = 1이 가장 좋은 성능이었다
+
+"""- 테스트 데이터를 넣으면 평균 97%, 반면에 검증시 최고점수는 98% 나왔다 => 절차상에 문제는 없는지 검토 필요하다"""
+
+Image('/content/drive/MyDrive/res/0404_res/머신러닝_검증폴드_전처리시_미포함됨.png')
+
+"""- cv 적용시 이미 데이터가 스케일링(정규화되어) 되어 있어서, 검증 폴드 데이터를 이미 스케일러가 경험해 봤다. 이미접했다 -> 이것이 검증 결과에 영향을 미친다 (그림 1, 교차검증)
+- 원하는 포인트는 그림 2, 교차검증 처럼, 5개의 fold중 훈련용 4개 fold를 기준으로 스케일러가 생성되고, 그 잣대(스케일러)로 검증폴드 1개를 정규화해서 검증시 정확하게 결과가 나온다
+
+- 이를 구현하기 위해서 **파이프라인을 사용**한다
+
+# 파이프라인 구축
+
+- 위에서 발생된 검증폴드 상에 예측시 문제점 해결
+  - 검증용 데이터를 전처리시 이미 경험해 버린 문제 
+- 여러 알고리즘 비교
+- 하이퍼파라미터 튜닝 동시 진행
+"""
+
+from sklearn.pipeline import make_pipeline, Pipeline
+# 2개 형태로 제공
+
+# 1. 클래스를 이용하여 구성
+# 이름(키)을 직접 지정하여서, 구성 <-> 자동 할당( 함수형 파이프라인 )
+# 만약 이름을 지정 하지 않으면 소문자형태로 자동 생성
+pipe1 = Pipeline( 
+    [ 
+     ( 'scaler', MinMaxScaler() ), 
+     ( 'clf', SVC() ) 
+    ]  
+  )
+pipe1
+
+# 2. 함수를 이용하여 구성
+pipe2 = make_pipeline( MinMaxScaler(), SVC() )
+pipe2
+
+"""## **파이프라인 구성** """
+
+from sklearn.pipeline import Pipeline
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+# 1. 파이프라인구축(기본축)
+pipe_std = Pipeline( [
+  ('scaler' , MinMaxScaler() ),
+  ('clf'    , SVC() )               
+] )
+
+# 2. 교차검증을 위한 파라미터 조합 구성
+# 파이프라인에 구축한 이름을 그대로 하위에서 사용해야, 같은 지위로 테스트 진행
+# 하이퍼파라미터의 이름은 (알고리즘의별칭)__(파라미터이름)
+param_grid = [              
+  {
+    'scaler': [ StandardScaler(), MinMaxScaler() ],
+    'clf'   : [ SVC() ],
+    'clf__C': [ 0.001, 0.01, 0.1, 1, 10, 100, 1000 ],
+    'clf__gamma': [ 0.001, 0.01, 0.1, 1, 10, 100, 1000 ],
+  },
+  {
+    'scaler': [ None ],
+    'clf'   : [ RandomForestClassifier( n_estimators=90 ) ],
+    'clf__n_estimators' : [90, 100, 110],
+    'clf__max_features' : [1,2,3]
+  }  
+]
+param_grid
+# 알고리즘 성향및 파라미터를 더 많이 이해하게 되면 좀더 의미 있게 구성할수 있다
+# 좀더 세밀하게 범위 값들을 배치한다
+
+# 3. 교차검증 -> 파이프라인을 가지고 진행
+grid = GridSearchCV(pipe_std, param_grid, cv = 5)
+
+# 4. 훈련
+grid.fit( X_train, y_train )
+
+# 5. 베스트 결과값 확인
+grid.best_params_
+
+grid.best_estimator_
+
+grid.best_score_
+
+# 6. 테스트 데이터를 이용하여 확인
+grid.score(X_test, y_test)
+
+"""- **파이프라인 기반으로 교차검증 및 하이퍼파라미터 튜닝을 통해 주어진 데이터에 가장 잘 예측할 수 있는 알고리즘과 전처리기, 파라미터값 들을 찾아낼 수 있었다**"""
 
