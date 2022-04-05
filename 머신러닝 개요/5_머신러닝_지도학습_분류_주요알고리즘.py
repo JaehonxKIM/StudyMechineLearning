@@ -227,6 +227,37 @@ plt.scatter(X[:,0], X[:,1],
 - 최종적으로는 2D로 표현
 """
 
+# numpy로 시작값에서 끝값까지, 특정 값 간격으로, 구간 나누기
+import numpy as np
+
+# 1 ~ 2 사이를 4개의 포인트로 나눠주세요
+x1 = np.linspace(1, 2, num = 4)
+y1 = np.linspace(4, 5, num = 4)
+x1, y1
+
+# 위의 재료를 가지고 (특성1, 특성2)로 모인 데이터 형태로 가공하는게 목표
+xx, yy = np.meshgrid(x1, y1)
+xx
+
+yy
+
+xx.shape, yy.shape, xx.ndim, xx.dtype
+
+# xx를 1차 배열로 바꾼다 -> flattern or reshape
+print(xx.ravel())
+print(xx.shape)
+print(xx.ndim)
+
+# x축에 대한 y축의 세트 구성 => (특성1, 특성2)
+'''
+[
+  [특성1, 특성2],
+  [xx의 첫번째, yy의 첫번째],
+  ..
+]
+'''
+np.c_[xx.ravel(), yy.ravel()]
+
 def show_rect_clf_boundary( clf, X, y ):
   '''
     모델을, 이 안에서 학습하여서 그리겟다
@@ -238,45 +269,502 @@ def show_rect_clf_boundary( clf, X, y ):
   _, ax = plt.subplots()
   # 1. 산포도(산점도) 드로잉
   ax.scatter( X[ :, 0], X[ :, 1], s=25, marker='o', c=y, cmap='rainbow', edgecolors='k',
-              clim=( y.min(), y.max() ), zorder=3
+              # 칼러 리미트 설정, 그리는 내용이 위로, 아래로 조정하는 zorder : depth 조정
+             clim=( y.min(), y.max() ), zorder=3
              )
   # 2. 차트 외곽 정리
   ax.axis('off')   # 축 정보 삭제
   ax.axis('tight') # 데이터의 분포가 펼쳐졌을 때 빡빡한 형태를 띈다면 여유있게 조절
   
   # 3. 면적(같은 답을 가진 사각 영역에 대한 공간)에 대한 데이터 준비
-  # 분류에 대한 경계성 계산 재료 준비
+  #    분류에 대한 경계성 계산 재료 준비
+  #    화면 공간상의 픽셀을 구한다(그 픽셀의 좌표는 독립변수 2개가 된다)
+  xlim_start, xlim_end = ax.get_xlim()
+  ylim_start, ylim_end = ax.get_ylim()
+  # 좌표계의 각 축별 시작값, 끝값
+  #print(xlim_start, xlim_end, ylim_start, ylim_end)
+  # 구간 간격을 200으로 설정
+  x_std = np.linspace(xlim_start, xlim_end, num = 200)
+  y_std = np.linspace(ylim_start, ylim_end, num = 200) 
+  xx, yy = np.meshgrid(x_std, y_std)
+  tmp_xy = np.c_[xx.ravel(), yy.ravel()]
+  print(tmp_xy.shape)
 
-  # 4. 알고리즘 생성(이미 완료됨)
+  '''
+    tmp_xy[ : , 0] : 준비한 좌표계 40000개중 x축 성분
+    tmp_xy[ : , 1] : 준비한 좌표계 40000개중 y축 성분
+    s: 점의 크기
+    zorder : 그려지는 깊이, 낮을수록 밑으로, 클수록 위로
+  '''
+  ax.scatter(tmp_xy[:, 0],tmp_xy[:, 1], s=1, zorder=1)
   
+  # 4. 알고리즘 생성(이미 완료됨)  
   # 5. 학습, 예측
   clf.fit(X,y)
-  Z = clf.predict()
+  #Z = clf.predict()
 
   # 6. 등고선 플롯을 그리기 위한 작업(분류된 영역 그리기)
   pass
 
 show_rect_clf_boundary(DecisionTreeClassifier(), X, y)
 
+## 위의 코드와 같음(정리본)
+
+def show_rect_clf_boundary( clf, X, y ):
+  '''
+    모델을, 이 안에서 학습하여서 그리겟다
+    - clf : 분류기, 알고리즘
+    - X   : feature data, 특성, 독립변수
+    - y   : target data, 정답, 종속변수
+  '''
+  _, ax = plt.subplots()
+  ax.scatter( X[ :, 0], X[ :, 1], s=25, marker='o', c=y, cmap='rainbow', edgecolors='k',clim=( y.min(), y.max() ), zorder=3)
+  ax.axis('off')  
+  ax.axis('tight') 
+  xlim_start, xlim_end = ax.get_xlim()
+  ylim_start, ylim_end = ax.get_ylim()
+  x_std = np.linspace(xlim_start, xlim_end, num = 200)
+  y_std = np.linspace(ylim_start, ylim_end, num = 200) 
+  xx, yy = np.meshgrid(x_std, y_std)
+  tmp_xy = np.c_[xx.ravel(), yy.ravel()]
+   
+  # 4. 학습, 예측
+  clf.fit(X,y)
+  # 5. 좌표계(혹은, 면적을 그리기 웨해 준비한 200*200 좌표 셋 데이터)에 대해 예측 수행
+  Z = clf.predict(tmp_xy)
+  print('좌표별로 예측된 분류값', Z, np.unique(Z))
+  print(xx.shape, yy.shape, Z.shape, Z.reshape(xx.shape).shape)
+  # 6. 등고선 플롯을 그리기 위한 작업(분류된 영역 그리기)
+
+  ax.contourf( xx,
+               yy,
+               Z.reshape( xx.shape ),
+               # 데코레이션 파트
+               alpha  = 1.0,
+               levels = np.arange( len( np.unique( Z ) ) + 1 ) - 0.5, # 면적 색상에 대한 준비
+               cmap   = 'rainbow',
+               clim   = ( y.min(), y.max()),
+               zorder = 1
+  )
+  pass
+
+show_rect_clf_boundary(DecisionTreeClassifier(), X, y)
+# 과적합된 모델의 분류 지도 -> 모든 케이스를 거의다 분류했다 -> 과적합, 편향적이다
+# 이를 해결하기 위해서는 알고리즘 레벨에서 과적합 방지 장치를 작동시켜야 한다
+
+# 과적합 방지 파라미터를 리프노드의 최소 데이터 수를 조정해서
+# 적당하게 분류지도가 완성되었다
+# 실제 진행시에는 고려사항 및 테스트가 필요하다
+show_rect_clf_boundary( DecisionTreeClassifier(
+    min_samples_leaf = 6    
+), X, y)
+
 """# 앙상블
 
 ## 개념
 
-## 보팅
+- **Ensemble Learning(앙상블 학습법)**
+- **여러개의 알고리즘**(분류)을 생성(동일, 서로다른)하여 학습을 수행하고, **그 예측값을 통합**(평균, ...)해서 최종예측을 수행하는 기법
+  - 약한 알고리즘들을 뭉쳐서 강한 모델을 만들 수 있다
+- **단일 분류기(모델을 1개 사용)보다 높은** 성능 혹은 신뢰성을 얻을 수 있었다
+"""
+
+Image('/content/drive/MyDrive/today/분류_앙상블1.jpg')
+# 동일 알고리즘을 여러개 사용한 것인가? -> 배깅
+# 다른 알고리즘을 여러개 사용한 것인가? -> 보팅
+
+"""## 보팅
 
 ### 특징, 포인트
 
+- Voting
+- 서로 다른 알고리즘 사용
+- 종류
+  - **하드 보팅**
+    - **다수결의 원칙**
+  - **소프트 보팅**
+    - 하드 보팅의 문제점 -> 다수결의 의존하다 보니, 질적인 부분, 실제 비중은 고려하지 못했다
+    - **정답이 결정되는 모든 확률을 더해서 평균내서 높은 쪽으로 결론을 내는 방식을 취한다**
+"""
+
+Image('/content/drive/MyDrive/today/분류_앙상블2_보팅.jpg')
+
+"""### 보팅 구현, 실습
+
+#### 필요 모듈 가져오기
+"""
+
+# 보팅 구현, 실습 -> 여러 알고리즘, 하드 혹은 소프트 보팅 방식 적용
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+
+# 보팅
+from sklearn.ensemble import VotingClassifier
+
+# 데이터셋
+from sklearn.datasets import load_breast_cancer
+
+# 데이터셋 준비(훈련용, 테스트용)
+from sklearn.model_selection import train_test_split
+
+# 평가도구
+from sklearn.metrics import accuracy_score
+
+# 데이터 처리
+import pandas as pd
+
+"""#### 데이터 준비"""
+
+# 데이터 로드
+cancer = load_breast_cancer()
+# data_df를 이름으로 가진 DataFrame 구성
+data_df = pd.DataFrame(cancer.data, columns = cancer.feature_names)
+data_df.head(1)
+
+data_df.shape
+
+# 데이터 => 훈련용, 테스트용으로 분리
+X_train, X_test, y_train, y_test = train_test_split(cancer.data, cancer.target,
+                                                    test_size = 0.25, random_state = 0)
+X_train.shape, X_test.shape
+
+"""#### 보팅에 사용할 알고리즘 생성"""
+
+lr_clf  = LogisticRegression()
+knn_clf = KNeighborsClassifier(n_neighbors=8)
+
+# 보팅에 사용할 알고리즘 연결
+# soft 방식인 경우 알고리즘의 개수가 짝수개여도 동수가 나올 확률은 아주 적다
+vo_clf = VotingClassifier(estimators = [('LR', lr_clf),('KNN',knn_clf)], voting = 'soft')
+
+# 학습
+vo_clf.fit( X_train, y_train )
+
+# 예측
+y_pred = vo_clf.predict(X_test)
+y_pred
+
+# 성능평가
+accuracy_score(y_test, y_pred)
+
+# 보팅에 참여한 개별 알고리즘은 어떻게 결과가 나오는지 확인
+for clf in [LogisticRegression(), KNeighborsClassifier(n_neighbors = 8)] :
+  clf.fit(X_train, y_train)
+  y_pred = clf.predict(X_test)
+  print(clf.__class__.__name__, accuracy_score( y_test, y_pred ))
+
+# 현재 보팅에 참여한 멤버들 중 로지스틱 회귀가 성능이 더 높아서
+# 모든 예측결과에 영향을 미치는 것으로 예상됨  
+# 항상 그러지는 않다
+# 발전사향 : 알고리즘 중성, 개별 알고리즘 최적화 => 보팅
+
+"""### 앙상블 학습의 핵심포인트
+
+- 트레이드-오프 문제
+  - A가 높으면 B가 낮고, 상반성을 가진 개념들 사이의 문제
+  - 상반된 2개의 개념을 적절하게 조정해야 트레이드-오프문제를 해결할 수 있다
+  - 앙상블의 트레이드 오프
+    - 편향과 분산
+    - 편향 : 바이어스, 해당 값이 높으면 특정문제는 잘 맞춘다. 반면에 특정문제는 잘 못 맞추는 문제를 가지고 있다. 과소적합이 문제를 야기할 수 있다
+    - 분산: 분산이 높으면, 이상치를 잘 뽑아낸다. 과대적합의 문제를 야기할 수 있다
+    - 이 2개 개념을 잘 조절할수 있게 모델을 최적화 하는게 목표
+
 ### 부트 스크래핑
 
-## 배깅-랜덤포레스트
+- cv(학습 데이터셋을 훈련용과 검증용으로 나눠서 처리하는 방식)는 앙상블 학습에서 어떻게 적용되는가
+"""
 
-## 부스팅
+Image('/content/drive/MyDrive/today/분류_앙상블2_배깅_부트스트래핑.jpg')
+# 서브셋에 중복된 데이터들이 여러번 등장한다 -> 기존 cv와는 다른점
+# 앙상블 학습의 특이점
+
+"""## 배깅-랜덤포레스트
+
+- Bagging
+- 동일 알고리즘을 여러개 만들어서, 보팅을 수행한다
+- 대표 알고리즘
+  - 랜덤 포레스트
+    - 뛰어난 성능, 빠른 수행시간, 유연성등등 
+    - 기초 알고리즘으로 **결정트리를 사용**
+"""
+
+Image('/content/drive/MyDrive/today/분류_앙상블2_배깅_랜덤포레스트.jpg')
+# 아래그림
+# 알고리즘 3개 사용
+# 데이터셋은 중복된 데이터가 들어갈 수 있다 -> 부트 스트래핑
+# 3개의 동일 알고리즘은 각각 다른 하이퍼파라미터를 사용하여 서로 다른 데이터를 가지고 학습/예측 수행
+# 개별 확률을 더해서 평균을 내어 분류를 수행한다 -> 소프트 보팅 수행
+# 이러 개념을 모두 포괄한 알고리즘이 랜덤 포레스트
+
+"""- 랜덤 포레스트
+  - 집단 학습 기반
+  - 구성에 따라 고밀도 정밀 분류, 회귀, 클러스터링도 모두 작업 가능하다
+    - 하드/소프트 보팅 가능
+    - 학습 데이터를 무작위로 샘플링을 수행한다 -> 랜덤
+"""
+
+Image('/content/drive/MyDrive/0404_res/ml-랜덤포레스트.png')
+
+# 위에서 사용한 동일한 암 데이터를 활용
+X_train.shape, X_test.shape, y_train.shape, y_test.shape
+
+# 알고리즘 생성
+from sklearn.ensemble import RandomForestClassifier
+
+'''
+  하이퍼 파라미터
+  n_estimators: 기본값 : 100, 결정트리 알고리즘을 몇개 사용할 것인가?
+  결정트리의 파라미터이다 -> 동일한 파라미터를 가진 알고리즘은 다양한 데이터를 통해서 학습
+  => 알고리즘별로 다른 파라미터를 넣는다면 더 좋을 수도 있지 않을까?
+    => 동일 알고리즘이라도 하이퍼파라미터를 다르게 세팅하고 싶다 -> 하이퍼파라미터 튜닝 기법 적용 
+'''
+rf_clf = RandomForestClassifier(random_state = 0)
+
+# 훈련
+rf_clf.fit(X_train, y_train)
+
+# 예측
+rf_clf.predict(X_test)
+
+# 평가
+accuracy_score(y_test, y_pred)
+
+"""- 정확도 상승 밑 알고리즘 파라미터 튜닝"""
+
+from sklearn.model_selection import GridSearchCV
+
+param_grid = {
+  # '파라미터명' : [값의 후보들 ]
+  'n_estimators' : [ 100, 200 ],       # 결정트리 개수. 사용하는 알고리즘 개수
+  'max_depth'    : [ 6, 8, 10, 12 ],   # 결정트리의 최대 깊이값  배분
+  'min_samples_split': [ 8, 12, 16 ],  # 규칙노드에서 브랜치를 수행하기 위한 최소 데이터셋 수
+  'min_samples_leaf': [ 8, 16, 24]     # 리프노드로 결정되는 최소 데이터수 
+}
+# n_job : CPU 코어를 학습시 몇개를 사용할 것인가? -1 = 모든 코어 동원해서 학습
+rf_clf = RandomForestClassifier(random_state=0, n_jobs = -1)
+
+grid_cv = GridSearchCV( rf_clf, param_grid, cv = 5, n_jobs = -1)
+
+# 학습
+grid_cv.fit(X_train, y_train)
+
+# 최적의 파라미터, 점수
+# 랜덤포레스트의 내부에서 사용하는 결정트리의 하이퍼파라미터는 1개의 최저 세트로 사용된다
+print(grid_cv.best_params_)
+print(grid_cv.best_score_)
+
+# 피쳐의 중요도
+rf_clf = RandomForestClassifier(random_state = 0)
+rf_clf.fit(X_train, y_train)
+
+# 분류의 성능을 높이기 위해서 영향력이 적은 컬럼은 제거, 압축한다 => 그 판단을 위해서 시각화
+rf_clf.feature_importances_
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+tmp = pd.Series(rf_clf.feature_importances_, index = cancer.feature_names)
+tmp = tmp.sort_values(ascending= False)
+tmp
+
+# sns.barplot(x = rf_clf.feature_importances_, y = cancer.feature_names)
+sns.barplot(x = tmp, y = tmp.index)
+plt.show()
+# 분류 모델이 분류를 잘하는데 영향을 미치는 컬럼의 지배력을 서열화해서 시각화
+
+"""## 부스팅
+
+- Boosting
+- 최근 사용빈도가 높아진 알고리즘 형태
+- 원리
+  - 여러개의 약한 분류기(알고리즘)을 순차적으로 학습 예측하여서, **잘못 예측한 데이터에 가중치를 부여하여 오류를 개선하는 방식으로 학습을 진행**하는 방식
+- 여러개의 알고리즘들은 각자의 방식으로 오류를 개선한다
 
 ### AdaBoost
+"""
 
-### GBM
+'''
+- 데이터가 적당히 분포되어 있다(피쳐데이터셋 그림)
+- step1 : 분류기준 1을 기준으로 +를 분류한다, +를 포함한다면 동그라미, 아닌 것은 잘못된 것으로 간주한다
+          분류기준 1을 기반으로 왼쪽은 + 영역, 오른쪽은 - 영역이라고 한다면
+          오른쪽에서 +를 포함하고 있다면 동그라미, 아닌 것은 그냥 둔다
 
-### XGBoost
+- step2 : 잘못 분류된 데이터 =? 동그라미+ => 오류 => 오류에 가중치를 부여하여
+          +가 두껍게 표시되었다
+
+- step3 : 가중치를 받은 +를 포함하여 다시 분류 => + 영역이 넓어짐
+          => -동그라미 등장
+
+- step4 : 오류 데이터 => -동그라미 => 가중치 부여 => 두꺼운 -
+
+- step5 : 반복 => 최종적으로 결합을 해보면 분류 기준이 생성된다 => 오랜 시간이 걸림          
+'''
+Image('/content/drive/MyDrive/today/분류_앙상블3_부스트.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_부스트2.jpg')
+# 여러번의 분류를 시도해서 그 가중치를 더해주면, 최종적으로 분류된 가중치 값들이 표현
+# 진한 곳, 연한 곳, 중간값 등등 보인다
+
+"""### GBM
+
+- Gradient Boost Mechine
+- 경사하강법을 가중치를 계산하는데 활용하는 기법
+- 경사하강볍
+  - 특정값(예 0.001)을 기반으로 지속적으로 업데이트(값을 미세조정)하면서, 예측값이 향상되었는지 체크 -> 시간이 지날수록 기울어진다(값의 추이)
+  - 딥러닝이 최적화 기법에서 등장, 여러가지 기법들이 존재
+  - 언제까지 미세조정을 할 것인가? 최적의 정확도가 나올때까지 반복 -> **학습시간이 많이 소요된다**
+
+- AdaBoost 와의 차이점은 가중치 업데이트라는 차이
+- 예
+  - h(x) = y - F(x) = 실제값 - 예측값 = 오차값
+  - 오차값을 최소화하는 방향으로 F(x)를 구성하는 특정 성분 중 가중치(W:weigt)를 미세조정한다
+  - 오차값이 0에 수렴하도록 W를 조정한다
+"""
+
+from sklearn.ensemble import GradientBoostingClassifier
+
+# 시간측정용
+import time
+
+# 시작 시간
+start_time = time.time()
+
+# GBM
+gbm_clf = GradientBoostingClassifier(random_state=0)
+gbm_clf.fit(X_train, y_train)
+y_pred = gbm_clf.predict(X_test)
+print(accuracy_score(y_test, y_pred) )
+
+# 종료 시간
+time.time() - start_time
+
+# 하이퍼파라미터 튜닝
+'''
+  - learning_rate : 학습 시 적용되는 학습비율 -> 0.1 기본값, 이 비율을 조정해보면서 정확도를 판단
+                    -> 가중치를 조절하는데 미세조정값이 이 파라미터이다 -> 미세조정값의 역할
+  - n_estimators : 분류기에 사용하는 개수 -> 결정트리 개수
+  - subsample : 분류기에서 사용하는 학습데이터 샘플량 비율: 현재 1.0 기본값
+  - loss      : 손실함수, 경사하강법은 미세조정를 통해서 오차값을 줄이는데 목적 > 판단하는 잣대가 여러가지 함수가 존재            
+'''
+param_grid = {
+    'learning_rate' : [0.05, 0.1, 0.01],
+    'n_estimators'  : [100, 500]
+}
+
+gbm_clf = GradientBoostingClassifier( random_state=0 )
+grid_cv = GridSearchCV(gbm_clf, param_grid, cv=3, verbose=True)
+grid_cv.fit( X_train, y_train )
+
+grid_cv.best_params_, grid_cv.best_score_
+
+# 테스트 데이터를 사용한 결과
+y_pred = grid_cv.best_estimator_.predict(X_test)
+print(accuracy_score(y_test, y_pred) )
+
+"""### XGBoost
+
+- 부스팅 기법 중 가장 많이 사용됨
+- GBM의 느린 속도, 과적합 규제하는 방안 없는 문제 => 개선
+- 기술적으로는 병렬학습이 가능하다 => 학습효율 극대화
+- 하이퍼파라미터는 GBM과 동일하고, 과적합 관련 사항 추가
+"""
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_xgboost1.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_xgboost2.jpg')
+
+'''
+- 학습시 학습 데이터의 포맷이 별도로 존재, DMetrix 형식(Wraping)
+- cv : 검증 폴드에 대한 셋업
+- strified: 충화 표본 추출 
+            -> 모집단(훈련 전체 데이터)들이 cv로 세트 구성할 때 
+            서로 중복되지 않게 층으로 나누어서 각 층에서 데이터 추출하는 방식
+
+- early_stopping_rounds : 조기 학습 종료 -> 어느정도 정확도, 손실값 수준으로 수렴해서, 
+                          더이상의 학습이 무의미해지면 학습을 조기에 종료한다            
+'''
+Image('/content/drive/MyDrive/today/분류_앙상블3_xgboost3.jpg')
+
+# 순수 xgboost 스타일
+import xgboost as xgb
+
+# sklearn스타일로 wraping된 클래스
+from xgboost import XGBClassifier
+
+xgb.__version__
+
+# 데이터
+data_df.shape, X_train.shape, X_test.shape
+
+data_df.head(1)
+
+"""#### 데이터 준비(DMetrix)"""
+
+dtrain = xgb.DMatrix(data = X_train, label = y_train) 
+dtest  = xgb.DMatrix(data = X_train, label = y_train)
+
+"""#### XGBoost 주요 하이퍼파라미터
+
+- eta
+  - 학습비용, 가중치를 조정하는 비율값
+  - 사용 : 0.01 ~ 0.03 혹은 기본값
+- max_depth
+  - 트리 최대 깊이
+  - 3 ~ 15 : 홀수값으로 지정
+- min_child_weight
+  - 하위 노드(바닥쪽에 존재하는 노드들) 이들이 가지고 있는 가중치의 총합
+  - 최소 가중치의 합
+  - 과소적합을 조정하기 위한 파라미터
+  - 각 노드단계에서 발생된 가중치(w)의 총합의 제한값
+  - 홀수값으로 지정
+- gamma
+  - 노드가 분할할 때(브랜치, 서브트리), 최소 감소값을 지정
+  - 보수적으로 처리, 손실함수값(오차값)을 고려하여 조정
+  - 규칙노드가 브랜치 할 때 판단되는 고려할 값
+  - 0.05 ~
+- subsample
+  - 각 트리에서 관측되는 데이터의 샘플링 비율
+  - 과소적합, 과대적합 조정 파라미터
+  - 0.6 ~ 1.0 비율 지정
+- colsample_bytree
+  - 각 트리에서 피쳐(특성, 컬럼)샘플링 비율
+  - 0.6 ~ 1.0 비율 지정
+- lambda
+  - 가중치(w)에 대한 L2 정규화
+    - 릿지 알고리즘
+- alpha
+  - 가중치(w)에 대한 L1 정규화
+    - 라쏘 알고리즘
+
+- 도구 관련 파라미터
+- eval_metric
+  - 평가도구
+  - **rmse**(root mean square error)
+    - 정답과 예측 사이의 오차율 -> 작을수록 정확도가 높다
+  - **mse**(mean square error)
+    - 평균 제곱근 오차
+  - **mae**(mean absolute error)
+    - 평균 절대값 오차
+  - 분류쪽에 활용
+    - **logloss** : 손실에 로그처리
+    - error
+    - merror
+    - mlogloss
+    - **auc**
+- seed 
+  - 난수 시드
+  - 재현성이 목표, 실험을 통제하기 위한 수단, 샘플 데이터를 고정하기 위한 수단
+- objective
+  - reg.linear
+    - 기본값
+  - binary : logistic
+    - 이진 분류
+  - multi : softmax
+    - 다중 클래스 분류
+    - 지분율
+  - multi : softprob
+    - 다중 클래스 분류
+    - 지분 확률
 
 ### LightGBM
 
