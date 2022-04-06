@@ -481,7 +481,7 @@ Image('/content/drive/MyDrive/today/분류_앙상블2
 """## 배깅-랜덤포레스트
 
 - Bagging
-- 동일 알고리즘을 여러개 만들어서, 보팅을 수행한다
+- **동일 알고리즘을 여러개** 만들어서, 보팅을 수행한다
 - 대표 알고리즘
   - 랜덤 포레스트
     - 뛰어난 성능, 빠른 수행시간, 유연성등등 
@@ -497,7 +497,7 @@ Image('/content/drive/MyDrive/today/분류_앙상블2
 # 이러 개념을 모두 포괄한 알고리즘이 랜덤 포레스트
 
 """- 랜덤 포레스트
-  - 집단 학습 기반
+  - **집단 학습 기반**
   - 구성에 따라 고밀도 정밀 분류, 회귀, 클러스터링도 모두 작업 가능하다
     - 하드/소프트 보팅 가능
     - 학습 데이터를 무작위로 샘플링을 수행한다 -> 랜덤
@@ -688,6 +688,8 @@ Image('/content/drive/MyDrive/today/분류_앙상블3
 # 순수 xgboost 스타일
 import xgboost as xgb
 
+# 사이킷런 스타일로 Wrapping된 클래스
+# 생성 -> fit() -> predict() -> 평가도구를 활용하여 판단
 # sklearn스타일로 wraping된 클래스
 from xgboost import XGBClassifier
 
@@ -765,16 +767,406 @@ dtest  = xgb.DMatrix(data = X_train, label = y_train)
   - multi : softprob
     - 다중 클래스 분류
     - 지분 확률
+"""
 
-### LightGBM
+# 훈련 작성시 파라미터를 부여하여 처리할 수 있다(알고리즘 생성시에도 세팅 가능함)
+params = {
+    'objective' : 'binary:logistic',  # 예측된 결과는 2종류이기 때문에, 바이너리로 개별 클래스에 대한 확률값
+    'eval_metric' : 'logloss',          # 학습을 언제 마무리할 지 그 평가 잣대, 손실함수를 기준으로 판단 
+    'max_depth' : 3,                    # 트리의 깊이 -> 과적합 방지에 대한 옵션
+    'eta' : 0.1,                        # 가중치를 조절하는 기준값, 이값을 기준으로 미세조정하여 가중치 조절
+    'early_stopping_rounds' : 100       # 조기학습종료, 100회를 도달하기전에, 
+                                        # 원하는 수준에 도달하고, 더이상 값의 변화가 없다면 조기 학습 종료 
+                                        # 해당 조건을 만족못하면 pass 
+}
+
+evals    = [(dtrain, 'train'), (dtest, 'eval')]
+'''
+  로그
+  [라운드] 검증시-logloss 테스트시-logloss
+  [0]	train-logloss:0.60924	eval-logloss:0.615431
+'''
+xgbModel = xgb.train(params = params, 
+           dtrain = dtrain,  
+           num_boost_round = 400,
+           evals = evals
+          )
+# 손실값이 점점 0에 수렴했고, 300회 넘어가서부터는 값의 변동폭이 거의 없었다
+
+"""- 해석
+  - 총 400회 라운드 진행(학습진행)
+  - 손실값이 줄어드는 결과를 보면 -> 가중치를 조정해서 정확도를 올리는 시도를 계속 진행했다
+  - 100회에서 조기학습 종료가 진행되지 않았다 -> 이 시점에서는 만족할 만한 성과가 없었다
+"""
+
+y_test
+
+y_pred = xgbModel.predict(dtest)
+# 확률값으로 나온다 -> 0과 1로 변환해야 한다
+y_pred[:10], type(y_pred)
+
+# 9.9983525e-01, 9.9729544e-01, ...,  => [ 0, 1, .... ]
+'''
+def trans(x) :
+  if x > 0.5 :
+    return 1
+  else :
+    return 0
+tmp.apply(trans)
+
+for n in y_pred :
+  if n > 0.5:
+    print(1)
+  else :
+    print(0)
+  print(n)
+  break
+  상향 연산자 대체 표현
+
+  참일 때 값 if 조건식 else 거짓일 때 값
+  -> 타언어 -> 조건 ? 참일 때 값: 거짓일 때 값
+'''
+y_preds = [ 1 if n > 0.5 else 0 for n in y_pred ]
+print( y_preds )
+
+y_test.shape, len(y_preds)
+
+# 성능평가, 혼동행렬 지표를 다 출력
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+def display_all_score( y_label, y_pred ):
+  '''
+    y_label : 정답  
+    y_pred : 예측값  
+  '''
+  print( '혼동행렬', confusion_matrix(y_label, y_pred) )
+  print( '정확도',   accuracy_score(y_label, y_pred) )
+  print( '정밀도',   precision_score(y_label, y_pred) )
+  print( '재현율',   recall_score(y_label, y_pred) )
+  print( 'F1-score', f1_score(y_label, y_pred) )
+  print( 'roc,auc',  roc_auc_score(y_label, y_pred) )
+  print( '-'*30 )
+  pass
+
+display_all_score( y_test, y_pred )
+
+# 데이터의 피처들의 중요도 시각화 도구
+from xgboost import plot_importance
+_, ax = plt.subplots( figsize=(16, 10) )
+plot_importance(  xgbModel, ax=ax )
+# 피쳐이름을 f+ 순서 형태로 제공
+# 여러 모델을 이용하여 교차로 체크 후
+# 영향력 업는 피쳐를 제거 후 학습하는 것도 전략
+
+# 사이킷런 스타일로 진행
+xgb_w = XGBClassifier(n_estimators = 400, random_state = 0)
+
+eval_set = [(X_test, y_test)]
+xgb_w.fit(X_train, y_train, early_stopping_rounds = 300, eval_set = eval_set,
+          eval_metric = 'logloss')
+
+xgb_w_pred = xgb_w.predict(X_test)
+xgb_w_pred
+# 래핑스타일이므로, 정답데이터 형태로 변환되서 나온다
+
+display_all_score(y_test, xgb_w_pred)
+
+"""### LightGBM
+
+- XGBoost는 GBM 대비 속도는 개선, 다 알고리즘 보다는 느리다
+- 하이퍼파라미터가 너무 많고 복잡하다
+- 개선점 : 학습 속도 상승, 가볍다(리소스를 적게 사용), 파라미터의 간결화(심플)
+- 특징
+  - **리프를 중심으로 한 트리 분할**
+  - 균형을 중시하는 방식을 비대칭이라도 리프 중심으로 옮기는데 주안점
+"""
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_lightGBM.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_lightGBM_param.jpg')
+
+# 파이썬 스타일 -> 자체 고유 스타일
+# lightgbm 라이브러리 불러오기
+import lightgbm
+# sklearn 스타일
+from lightgbm import LGBMClassifier
+
+lightgbm.__version__
+
+lgbm_clf = LGBMClassifier(n_estimators = 400)
+
+eval_set = [(X_test, y_test)]
+lgbm_clf.fit(X_train, y_train,
+             early_stopping_rounds = 300,
+             eval_metric = 'logloss',
+             eval_set = eval_set)
+# 손실값이 xgb보다 0.01dl 단축되었다
+# valid_0's binary_logloss: 0.0359908	valid_0's binary_logloss: 0.0359908
+
+# 예측 및 성능평가
+y_pred = lgbm_clf.predict(X_test)
+y_pred
+
+display_all_score(y_test, y_pred)
+
+"""- 결론
+  - 부스팅 기법에서 XGBoost, LightGBM은 같이 활요하는게 적절해 보인다(성능이 거의 유사하게 나옴 -> 데이터 증설, 하이퍼파라미터 튜닝등 더 진행해 보는게 좋을듯)
 
 ## 스태킹
 
-# SVM
-
-## 개념
-
-# KNN
-
-## 개념
+- stacking
+- 원리
+  - 여러 모델의 예측결과를 기반으로, 이 정보를 메타정보로 구축, 이를 이용해서 다시 학습 후 예측 수행
+  - 모델은 2단계에 걸쳐서 생성
+  - 예측결과가 데이터가 되는 구조
+- 정리
+  - 1차 모델: 원본 데이터를 이용하여, **여러개의 알고리즘을 활용(서로다른)** 
+  - 2차 모델 : 예측 결과를 데이터로 활용하여서 학습후 예측
 """
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_스테킹1.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_스테킹2.jpg')
+
+"""### step1(1차 모델 생성)"""
+
+# 그림에 맞춰서 코드를 전개
+from sklearn.ensemble import AdaBoostClassifier
+
+# 모델 1에서 사용할 서로 다른 여러개의 알고리즘 가져오기
+knn_clf = KNeighborsClassifier(n_neighbors = 4)
+rf_clf = RandomForestClassifier(n_estimators = 100)
+dt_clf = DecisionTreeClassifier()
+ab_clf = AdaBoostClassifier(n_estimators = 100)
+
+"""### step2(2차 모델 생성)"""
+
+# 순서는 경우에 따라 사용하기 전에 조정 가능
+# 2차 모델 => 회귀 계열이 적절해 보임
+lr_clf = LogisticRegression()
+
+"""### step3(데이터 준비)"""
+
+X_train.shape, X_test.shape, y_train.shape, y_test.shape
+
+y_train[:10]
+
+"""### step4(학습, 싸이킷런 스타일로 진행)"""
+
+knn_clf.fit( X_train, y_train )
+rf_clf.fit ( X_train, y_train )
+dt_clf.fit ( X_train, y_train )
+ab_clf.fit ( X_train, y_train )
+
+"""### step5(예측)"""
+
+knn_pred = knn_clf.predict( X_test )
+rf_pred  = rf_clf.predict ( X_test )
+dt_pred  = dt_clf.predict ( X_test )
+ab_pred  = ab_clf.predict ( X_test )
+
+knn_pred.shape, knn_pred[:10]
+
+"""### step6(예측 결과를 모아서 2차 데이터 준비)"""
+
+# 최종결과물 => (143, 4)
+meta_data = np.array( [ knn_pred, rf_pred, dt_pred, ab_pred ] ).T
+meta_data.shape
+
+"""### step7(2차 모델 학습)"""
+
+lr_clf.fit(meta_data, y_test)
+
+"""### step8(2차 모델 예측)"""
+
+# 정확도를 측정하기 위해 한번도 접해보지 않은 데이터를 넣어서 예측해야 한다
+# 현재, 준비된 모든 데이터를 소모하였다
+# 여기서는 설정한 재사용하겠다
+accuracy_score(y_test, lr_clf.predict(meta_data))
+
+# cv를 적용한 학습 과정 형태
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_스테킹3.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_스테킹4.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_스테킹5.jpg')
+
+Image('/content/drive/MyDrive/today/분류_앙상블3_스테킹6.jpg')
+
+"""- 위의 그림에 따라, 검증 폴드를 이용한 예측 결과를 2차 모델의 학습용 데이터로 사용
+- 1차모델의 성능을 체크하기 위해 테스트 데이터로 뎨측한 결과는 모아서 2차 모델의 최종 테스트 데이터로 사용
+- 직접 구현, **KFold**를 사용
+"""
+
+knn_clf = KNeighborsClassifier(n_neighbors = 4)
+rf_clf = RandomForestClassifier(n_estimators = 100, random_state = 0)
+dt_clf = DecisionTreeClassifier()
+ab_clf = AdaBoostClassifier(n_estimators = 100)
+
+Image('/content/drive/MyDrive/res/0404_res/머신러닝_학습시_검증폴드지정.png')
+
+def make_stacking_data(clf, X_train, y_train, X_test, n_folds = 7) :
+  '''
+    지도학습 > 분류 > 양상블 > 스태킹> 1차메타데이터 생성 함수
+    Parameter
+    - clf      : 분류기
+    - X_train  : 초기 훈련데이터
+    - X_test   : 초기 테스트데이터
+    - n_folds  : cv값, 7세트로 구성
+    Returns
+    - train_fold_valid_pred : 모델 학습시 내부적으로 검증폴드를 이용해 성능측정용으로 예측을 수행한다
+    - test_pred_avg         : 모델 학습이 끝나면 한번도 접하지 않은 데이터(테스트)를 넣어서 
+                              예측한 결과의 평균 낸 데이터(경우에 따라 평균작업은 생략가능)
+    ex) 데이터 10개, cv = 5 1세트의 데이터 수는? 2개
+        학습 => 4세트로 학습, 1세트로 검증 => 결과 2개                            
+  '''
+  # 초기 예측결과를 담는 그릇은 모두 0으로 초기화 해서 준비
+  # cv를 이용한 학습 특성 상 1개의 데이터는 1번만 검증되며 예측값이 생성된다
+  train_fold_valid_pred = np.zeros((X_train.shape[0], 1))
+  # cv를 통해서 만들어진 세트 수만큼 테스트 데이터르 사용하여서 예측되므로 
+  # 테스트 예측을 수행하는 횟수는 n_folds와 동일하다
+  test_pred_avg = np.zeros((X_test.shape[0],n_folds))
+  return train_fold_valid_pred, test_pred_avg
+
+# make_stacking_data(알고리즘, 훈련용데이터, 훈련용정답데이터, 테스트용데이터)
+# 리턴값
+# - 검증시, 예측의 결과물을 담은 데이터 -> 2차모델의 훈련용,
+# - 테스트용데이터를 넣어서 예측한 데이터 -> 2차모델의 테스트용
+knn_train, knn_test = make_stacking_data(knn_clf, X_train, y_train, X_test)
+
+# 주석 제거
+
+from sklearn.model_selection import KFold
+
+def make_stacking_data(clf, X_train, y_train, X_test, n_folds = 7) :
+  # cv를 처리하기 위해 폴드 객체 생성
+  # suffle = False => fold셋을 구성할 때 데이터를 섞지 않겠다
+  kf = KFold(n_splits = n_folds)
+  # [0.] ......(426, 1)
+  train_fold_valid_pred = np.zeros((X_train.shape[0], 1))
+  #[0. 0. 0. ... 0. 0. 0.],(143, 7)
+  test_pred_avg = np.zeros((X_test.shape[0],n_folds))
+  #------------------------------------------------------------
+  for idx, (train_idx, valid_idx) in enumerate(kf.split(X_train)) :
+    # kf_split(주어진 데이터)를 
+    # 7번 반복하는 동안 훈련에 참가할 데이터의 인덱스,
+    # 검증에 참가할 데이터의 인덱스를 뽑아 리턴해 준다
+    # 모든 데이터는 7번 반복하는 동안 1번은 검증용으로 사용된다
+    print(idx, train_idx.size, valid_idx.size)
+    break
+  return train_fold_valid_pred, test_pred_avg
+knn_train, knn_test = make_stacking_data(knn_clf, X_train, y_train, X_test)
+
+# 주석제거
+
+type(X_train), type(y_train)
+
+def make_stacking_data(clf, X_train, y_train, X_test, n_folds = 7) :
+  kf = KFold(n_splits = n_folds)
+  train_fold_valid_pred = np.zeros((X_train.shape[0], 1))
+  test_pred_avg = np.zeros((X_test.shape[0],n_folds))
+  for idx, (train_idx, valid_idx) in enumerate(kf.split(X_train)) :
+    # 1. fold 기준으로 훈련데이터, 검증용데이터, 훈련용정답데이터 추출
+    X_tre = X_train[train_idx] # 주어진 인덱스에 해당되는 훈련 데이터만 추출 -> 365개
+    y_tre = y_train[train_idx] # 주어진 인덱스에 해당되는 정답 데이터만 추출 -> 365개
+    X_val = X_train[valid_idx] # 주어진 인덱스에 해당되는 검증 데이터만 추출 -> 61개
+    # 2. 훈련
+    clf.fit(X_tre, y_tre)
+    # 3. 예측 => 검증용 데이터로
+    tmp = clf.predict(X_val)
+    # 4. 검증용 데이터로 예측된 데이터를 적재
+    # 2차원 데이터를 2차원 위치에 대입
+    train_fold_valid_pred[valid_idx,: ] = tmp.reshape(-1, 1)
+    # 5. 테스트용 데이터로 예측된 데이터를 적재
+    # 1차원 데이터를 1차원 위치에 대입
+    test_pred_avg[:, idx] = clf.predict(X_test)
+    break
+  return train_fold_valid_pred, test_pred_avg
+
+knn_train, knn_test = make_stacking_data(knn_clf, X_train, y_train, X_test)
+
+knn_train.shape, knn_test.shape
+
+# 예제
+
+tmp = np.zeros((6,1))
+tmp,tmp.shape
+
+# [1,3,5] => 인덱스 번호가 1,3,5 인 데이터를 추출하시오
+tmp[[1,3,5],:]
+
+# -1 은 해당차원은 계산하지 않겠다(자동으로 처리됨)
+value = np.array([100,200,300]).reshape(-1, 1)
+value
+
+# 반복적으로 작업을 하다보면 tmp에 모든 방에 검증 후 예측된 결과가 세팅될 것이다
+tmp[[1,3,5],:] = value
+tmp
+
+# 주석제거
+
+def make_stacking_data(clf, X_train, y_train, X_test, n_folds=7):  
+  kf                    = KFold( n_splits=n_folds, shuffle=False )
+  train_fold_vaild_pred = np.zeros( ( X_train.shape[0], 1) )    
+  test_pred_avg         = np.zeros( ( X_test.shape[0], n_folds) )
+  for idx, (train_idx, vaild_idx) in enumerate( kf.split( X_train ) ):
+    X_trs = X_train[ train_idx ]
+    y_trs = y_train[ train_idx ]
+    X_val = X_train[ vaild_idx ]
+    clf.fit( X_trs, y_trs )
+    tmp = clf.predict( X_val )    
+    train_fold_vaild_pred[ vaild_idx , : ] = tmp.reshape(-1, 1)    
+    test_pred_avg[ : , idx ]               = clf.predict( X_test )
+  # 테스트 데이터 예측값 평균 처리
+  # test_pred_avg : (143, 7) -> 평균처리(np.mean()) => (143,) -> (143,1)
+  test_pred_avg = np.mean( test_pred_avg, axis=1).reshape( -1, 1 )
+  return train_fold_vaild_pred, test_pred_avg
+
+knn_train, knn_test = make_stacking_data(knn_clf, X_train, y_train, X_test)
+
+knn_test.shape
+
+knn_train, knn_test = make_stacking_data(knn_clf, X_train, y_train, X_test)
+rf_train, rf_test   = make_stacking_data(rf_clf, X_train, y_train, X_test)
+dt_train, dt_test   = make_stacking_data(dt_clf, X_train, y_train, X_test)
+ab_train, ab_test   = make_stacking_data(ab_clf, X_train, y_train, X_test)
+
+knn_train.shape, knn_test.shape, rf_train.shape, rf_test.shape
+
+# 알고리즘 별로 생성된 데이터 통합
+stacking_X_train = np.concatenate((knn_train, rf_train, dt_train, ab_train), axis=1)
+stacking_X_train.shape
+
+stacking_X_test = np.concatenate((knn_test, rf_test, dt_test, ab_test), axis=1)
+stacking_X_test.shape
+
+# 평균을 낸것이기 때문에 0과 1이 아닌 중간값들도 여러개 존재할수 있다
+stacking_X_test[ :10 , : ]
+
+# 2차 모델 학습
+lr_clf = LogisticRegression()
+
+lr_clf.fit(stacking_X_train, y_train)
+
+# 예측 및 평가
+accuracy_score(y_test, lr_clf.predict(stacking_X_test))
+
+"""# SVM
+
+## 개념
+
+- 가장 넢은 여백을 가지게끔, 클래스로 구분할 수 있게 **경계선을 찾는다**
+- 2개의 클래스를 확실하게 분류할 수 없다면, 가능한 최적의 **경계선**을 찾는다
+- 이미지 분류에서 많이 사용(전통적)
+"""
+
+Image('/content/drive/MyDrive/res/0404_res/ml-서포트백터머신.png')
+
+"""# KNN
+
+## 개념
+
+- 클러스터링에서 많이 사용
+"""
+
+Image('/content/drive/MyDrive/res/0404_res/ml-최근접이웃.png')
