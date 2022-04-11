@@ -519,6 +519,151 @@ cluster_df.groupby('target')['cluster'].value_counts()
   - 이미지, 영상쪽에 많이 활용된다
 
 # GMM(확률기반)
+"""
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gmm_1.png')
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gmm_2.png')
+# 데이터가 아래처럼 분포되어 있다
+# 이런 데이터 분포를 자세히 보면 여러개의
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gmm_3.png')
+# 마치 정규분포 3개가 결합된 형태로 보인다
+# 데이터는 여러개의 서로 다른 정규분포를 가진 데이터가 합쳐진 형태
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gmm_4.png')
+# 아래처럼 생긴 데이터 분포에서 서로 다른 정규분포를 가진 데이터를 추출하는 것
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gmm_5.png')
+# 최종형태 -> 개별 정규분포를 가진 군집을 추출해내는 방법
+
+from sklearn.datasets import load_iris
+from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
+
+# iris_data
+iris = load_iris()
+iris_df = pd.DataFrame(data=iris.data, columns=iris.feature_names)
+iris_df.head(1)
+
+# GaussianMixture 사용
+# n_components : 군집의 개수 => 이 데이터의 정규분포가 몇개인가?
+# 후보군을 넣어서 체크
+gmm = GaussianMixture( n_components=3, random_state=0)
+
+# 데이터 학습
+gmm.fit( iris.data )
+
+# 군집번호 확인
+gmm_labels = gmm.predict(iris.data)
+gmm_labels
+# 0, 1 번 대 군집은 잘 된것 같다
+
+# 실제 정답, 군집번호 추가 => 정답 대비, 군집 상황 점검하기 위해
+iris_df['target']     = iris.target
+iris_df['gmm_cluster'] = gmm_labels
+iris_df.head(2)
+
+iris_df.groupby('target')['gmm_cluster'].value_counts()
+
+"""- GMM은 개별 데이터들이 어떤 정규분포상에 포함되었는지 결정, 추출하는 방식을 차용 => '모수 추정 방식' 이라고 함
 
 # DBSCAN(밀도기반, 기하학적분포)
+
+- Density Based Spatial Clustering of Application Noise
+- 데이터 분포가 일반적이지 않은 기하학적 형태를 띌 경우
 """
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_DBSCAN_1.png')
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_1.png')
+# 데이터가 분포되어 있다
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_2.png')
+# 데이터 포인트를 하나 설정
+# 그 포인트를 중심으로 입실론(설정값) 반경으로 원을 그리고
+# 그 안에 데이터 포인트 4개 이상이면, 군집으로 인정
+# 군집으로 인정될때 그 안에 중심점을 코어 포인트라고 한다
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_3.png')
+# p2확인, 여기를 중심으로 입실론 반경으로 그려보았다
+# 첫번째 반경이 조사되고 나서 두번째 반경을 조사한 결과
+# 포인트가 4개이상 존재하였다 -> 군집으로 인정, 코어 포인트 p2
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_4.png')
+# 2개의 코어 포인트(P1, P2) 가 각각 입실론 반경내에 포함되어 있다
+# 그렇다면 2개의 군집은 한개의 군집으로 인정
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_5.png')
+# 한개의 군집으로 인정 -> 군집이 넓혀진다
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_6.png')
+# border 포인트
+# 새로운 지점에서 반경을 잡았다(p3)
+# 데이터 포인트가 4개 미만이다
+# 그런데 반경 내에 코어 포인트가 있다
+# 이런 반경은 경계 포인트 표현 -> 군집의 경계썬
+
+Image('/content/drive/MyDrive/ComputerProgramming/0406_res/cluster_gbscan_7.png')
+# 노이즈포인트
+# p5기준으로 입실론 반경 조사해본 결과 -> 4개 미만 코어포인트 없음
+# 잡음 -> 이상치
+
+# 데이터를 기하학적 형태로 제공
+from sklearn.datasets import make_circles
+# make_circles을 이용해서 2개 원이 겹치지 않게 내부 외부에 존재하도록 그림
+# 데이터 생성
+
+# factor : 안쪽에 있는 원, 바깥쪽 원의 스케일 비율
+X, y = make_circles(n_samples = 1000, noise = 0.05, random_state = 0, factor = 0.5)
+X.shape, y.shape
+
+X
+
+# df 구성
+cluster_df = pd.DataFrame(X, columns = ['col_1' , 'col_2'])
+cluster_df.head(1)
+
+cluster_df['target'] = y
+cluster_df.head(1)
+
+"""- DBSCAN, KMeans를 이용한 군집 처리 비교"""
+
+# 알고리즘 준비
+from sklearn.cluster import DBSCAN, KMeans
+
+# eps : 입실론 반경 값
+# min_samples : 반경 안에 들어가 있는 데이터 포인트 수 -> 기준으로
+# 군집으로 인정한다 : 포인트 수 >= min_samples
+dbscan = DBSCAN(eps = 0.2, min_samples = 10)
+# 군집을 위한 학습 후, 군집번호가 부여된 레이블링 값 리턴
+cluster_df['dbscan_cluster'] = dbscan.fit_predict(X)
+cluster_df.head(2)
+
+kmeans = KMeans(n_clusters= 2, max_iter = 1000, random_state = 0)
+cluster_df['kmeans_cluster'] = kmeans.fit_predict(X)
+cluster_df.head(2)
+
+"""- 알고리즘 별로 각각 군집화된 데이터를 시각화 하시오
+- 알고리즘 1개 => 차트 1개
+"""
+
+def show_per_cluster(df, cols_name, algo) :
+  # 중복되지 않는 군집값 추출 => [0,1]
+  unique_cluster_labels = df[cols_name].unique()
+  markers = ['o', 's', '^', 'x', '*', '+']
+  
+  for label in unique_cluster_labels :
+    # 해당 군집값과 일치하는 데이터만 추출
+    datas = df[df[cols_name] == label]
+    # 산점도 그리기
+    plt.scatter(x = datas['col_1'], y = datas['col_2'],
+                s = 50, edgecolors = 'k', marker = markers[label],
+                label = f'cluster-{label}')
+    
+  plt.legend()
+  plt.show()
+  pass
+show_per_cluster(cluster_df, 'dbscan_cluster', dbscan)
+
+show_per_cluster(cluster_df, 'dbscan_cluster', kmeans)
